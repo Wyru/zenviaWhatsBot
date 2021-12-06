@@ -1,11 +1,14 @@
 const { TextContent } = require('@zenvia/sdk');
+const ChatController = require('./chat.controller');
 
 class MessageController {
   /**
    * @param  {import("@zenvia/sdk").IChannel} channel
    */
-  constructor (channel){
+  constructor (channel, database){
     this.channel = channel;
+    this.database = database;
+    this.chatController = new ChatController(database.chats);
   }
 
   /**
@@ -15,20 +18,33 @@ class MessageController {
     try {
       console.log('Message event:', messageEvent);
 
-      const content = new TextContent('it\'s me');
-      console.log("🐛 ~ file: message.controller.js ~ line 21 ~ MessageController ~ MessageEventHandler ~ this.channel", this)
+      let chat = await this.chatController.getChatOfNumber(messageEvent.message.from);
 
-      const response = await this.channel.sendMessage(
+      if(!chat){
+        chat = await this.chatController.saveChat({
+          phoneNumber: messageEvent.message.from,
+          name: messageEvent.message.visitor.name,
+          interactions: 0
+        });
+      }
+
+      chat.interactions++;
+
+      const content = new TextContent(`Olá ${chat.name}, você já enviou mensagem ${chat.interactions}`);
+
+      await this.channel.sendMessage(
         messageEvent.message.to, 
         messageEvent.message.from, 
         content
       );
 
-      console.log(response);
+
+      await this.chatController.update(chat);  
+
     } catch (error) {
       console.log(error);
     }
   }
 }
 
-module.exports = {MessageController};
+module.exports = MessageController;
